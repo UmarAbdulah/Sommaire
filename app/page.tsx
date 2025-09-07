@@ -1,11 +1,18 @@
-import { Button } from "@/components/ui/button"
-
+import HeroSection from "@/components/home/hero-section";
+import DemoSection from "@/components/home/demo-section";
+import HowItWorks from "@/components/home/how-it-works";
+import PricingSection from "@/components/home/pricing-section";
+import CTA from "@/components/home/cta";
 export default function Home() {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <h1>Hello</h1>
-      <Button>Click me</Button>
-
+    <div className="relative w-full">
+      <div className="flex flex-col">
+        <HeroSection />
+        <DemoSection />
+        <HowItWorks />
+        <PricingSection />
+        <CTA />
+      </div>
     </div>
   );
 }
