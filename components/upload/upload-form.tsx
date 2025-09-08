@@ -5,8 +5,6 @@ import { UploadFormInput } from "./upload-form-input";
 import { z } from "zod";
 import { useUploadThing } from "@/utils/uploadthing";
 import * as Toast from "@radix-ui/react-toast";
-import { generatePDFSummary, generatePdfText } from "@/actions/upload-actions";
-import { storePdfSummaryAction } from "@/actions/upload-actions";
 import { useRouter } from "next/navigation";
 import { formatFileNameAsTitle } from "@/utils/formatutil";
 
@@ -27,7 +25,6 @@ type ToastStatus = "success" | "error" | "processing";
 
 export default function UploadForm() {
   const [isLoading, setIsLoading] = React.useState(false);
-
   const [toastOpen, setToastOpen] = React.useState(false);
   const [toastTitle, setToastTitle] = React.useState("");
   const [toastDescription, setToastDescription] = React.useState("");
@@ -37,14 +34,13 @@ export default function UploadForm() {
     React.useState<ToastStatus>("processing");
 
   const { startUpload } = useUploadThing("pdfUploader", {
-    onClientUploadComplete: () => {},
     onUploadError: (error) => {
       setToastTitle("Upload Failed");
       setToastDescription(error.message);
       setToastStatus("error");
       setToastOpen(true);
     },
-    onUploadBegin: (data) => {
+    onUploadBegin: () => {
       setToastTitle("Processing PDF...");
       setToastDescription("Hang tight, this may take a few moments.");
       setToastStatus("processing");
@@ -72,64 +68,50 @@ export default function UploadForm() {
         return;
       }
 
+      // 1. Upload file to UploadThing
       const uploadResponse: any = await startUpload([file]);
-
-      let storeResult: any;
-
-      setToastTitle("Saving PDF Summary");
-      setToastDescription("Hang Tight! WE'RE ALMOST DONE!");
-      setToastOpen(true);
-      setIsLoading(true);
-
-      const formatedFileName = formatFileNameAsTitle(file.name);
-      console.log(uploadResponse);
-      const result = await generatePdfText({
-        fileUrl: uploadResponse[0].url,
-      });
-      const summaryResult = await generatePDFSummary(
-        result?.data,
-        formatedFileName
-      );
-
-      if (!summaryResult.success) {
-        setToastTitle("Error");
-        setToastDescription(summaryResult.message);
-        setToastStatus("error");
-        setToastOpen(true);
-        setIsLoading(false);
+      if (!uploadResponse || !uploadResponse[0]?.url) {
+        throw new Error("File upload failed");
       }
 
-      const { data = null, message = null } = summaryResult || {};
+      const fileUrl = uploadResponse[0].url;
+      const formattedFileName = formatFileNameAsTitle(file.name);
 
-      if (data) {
-        storeResult = await storePdfSummaryAction({
-          fileUrl: uploadResponse[0].url,
-          summary: data.summary,
-          title: formatedFileName,
+      // 2. Call lightweight /api/upload
+      const uploadRes = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileUrl,
           fileName: file.name,
-        });
-      }
+          title: formattedFileName,
+        }),
+      }).then((res) => res.json());
 
-      router.push(`/summaries/${storeResult.data}`);
+      if (!uploadRes.success) throw new Error("DB save failed");
+
+      const id = uploadRes.data;
+
+      // 3. Kick off background summary processing
+      fetch("/api/process-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, fileUrl, fileName: file.name }),
+      });
+
+      // 4. Redirect user immediately
+      router.push(`/summaries/${id}`);
     } catch (error) {
-      console.log(error);
+      console.error(error);
       setToastTitle("Error");
       setToastStatus("error");
       setToastOpen(true);
-      setIsLoading(false);
-      setIsLoading(false);
-      formRef.current?.reset();
     } finally {
-      formRef.current?.reset();
       setIsLoading(false);
-      setToastTitle("Summary Generated Successfully");
-      setToastDescription("Your PDF has been summarized.");
-      setToastStatus("success");
-      setToastOpen(true);
+      formRef.current?.reset();
     }
   };
 
-  // Dynamically set title color
   const titleColorClass =
     toastStatus === "success"
       ? "text-green-600"

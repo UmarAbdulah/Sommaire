@@ -3,6 +3,4 @@
     "app/**/*": {
       "maxDuration": 60
     }
-  },
-  "buildCommand": "npm install --legacy-peer-deps && npm run build"
-}
+  }}
