@@ -82,7 +82,6 @@ export default function UploadForm() {
       setIsLoading(true);
 
       const formatedFileName = formatFileNameAsTitle(file.name);
-      console.log(uploadResponse);
       const result = await generatePdfText({
         fileUrl: uploadResponse[0].url,
       });
