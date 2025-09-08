@@ -28,6 +28,7 @@ export const POST = async (req: NextRequest) => {
                 const subscription = event.data.object;
                 const subscriptionId = event.data.object.id;
                 await handleSubscriptionDeleted({ subscriptionId, stripe });
+                console.log(subscription);
                 break;
             default:
                 console.log(`Unhandled event type ${event.type}`);
