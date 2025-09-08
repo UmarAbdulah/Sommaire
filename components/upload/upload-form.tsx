@@ -8,14 +8,8 @@ import * as Toast from "@radix-ui/react-toast";
 import { useRouter } from "next/navigation";
 import { formatFileNameAsTitle } from "@/utils/formatutil";
 
-// server actions
-import {
-  generatePdfText,
-  generatePDFSummary,
-  storePdfSummaryAction,
-} from "@/actions/upload-actions";
-
-type ToastStatus = "success" | "error" | "processing";
+// ✅ Import the server action instead of fetch
+import { enqueuePdfSummary } from "@/actions/upload-actions";
 
 const schema = z.object({
   file: z
@@ -24,116 +18,91 @@ const schema = z.object({
       (file) => file.size <= 20 * 1024 * 1024,
       "File size must be less than 20MB"
     )
-    .refine((file) => file.type === "application/pdf", "File must be a PDF"),
+    .refine(
+      (file) => file.type.startsWith("application/pdf"),
+      "File must be a PDF"
+    ),
 });
+
+type ToastStatus = "success" | "error" | "processing";
 
 export default function UploadForm() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [toastOpen, setToastOpen] = React.useState(false);
   const [toastTitle, setToastTitle] = React.useState("");
   const [toastDescription, setToastDescription] = React.useState("");
-  const [toastStatus, setToastStatus] =
-    React.useState<ToastStatus>("processing");
   const formRef = React.useRef<HTMLFormElement>(null);
   const router = useRouter();
+  const [toastStatus, setToastStatus] =
+    React.useState<ToastStatus>("processing");
 
   const { startUpload } = useUploadThing("pdfUploader", {
     onUploadError: (error) => {
-      showToast("Upload Failed", error.message, "error");
+      setToastTitle("Upload Failed");
+      setToastDescription(error.message);
+      setToastStatus("error");
+      setToastOpen(true);
     },
     onUploadBegin: () => {
-      showToast(
-        "Processing PDF...",
-        "Hang tight, this may take a few moments.",
-        "processing"
-      );
+      setToastTitle("Uploading...");
+      setToastDescription("Hang tight, we’re saving your PDF.");
+      setToastStatus("processing");
+      setToastOpen(true);
     },
   });
-
-  function showToast(title: string, description: string, status: ToastStatus) {
-    setToastTitle(title);
-    setToastDescription(description);
-    setToastStatus(status);
-    setToastOpen(true);
-  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       setIsLoading(true);
-
       const formData = new FormData(e.currentTarget);
       const file = formData.get("file") as File;
 
-      // ✅ Validate
-      const validatedFields = schema.safeParse({ file });
-      if (!validatedFields.success) {
-        showToast(
-          validatedFields.error.flatten().fieldErrors.file?.[0] ??
-            "Invalid file",
-          "",
-          "error"
+      const validated = schema.safeParse({ file });
+      if (!validated.success) {
+        setToastTitle(
+          validated.error.flatten().fieldErrors.file?.[0] ?? "Invalid File"
         );
-        setIsLoading(false);
+        setToastDescription("");
+        setToastStatus("error");
+        setToastOpen(true);
         return;
       }
 
-      // ✅ Upload to UploadThing
+      // ✅ Upload file
       const uploadResponse: any = await startUpload([file]);
-      if (!uploadResponse?.[0]?.url) {
+      if (!uploadResponse || !uploadResponse[0]?.url) {
         throw new Error("File upload failed");
       }
       const fileUrl = uploadResponse[0].url;
       const formattedFileName = formatFileNameAsTitle(file.name);
 
-      // ✅ Extract text
-      const textRes = await generatePdfText({ fileUrl });
-      if (!textRes.success || !textRes.data) {
-        throw new Error("Failed to extract PDF text");
-      }
-
-      // ✅ Generate summary
-      const summaryRes = await generatePDFSummary(
-        textRes.data,
-        formattedFileName
-      );
-      if (!summaryRes.success || !summaryRes.data) {
-        throw new Error("Failed to generate summary");
-      }
-
-      // ✅ Store in DB
-      const saveRes = await storePdfSummaryAction({
+      // ✅ Call server action directly (no fetch)
+      const enqueueRes = await enqueuePdfSummary({
         fileUrl,
-        summary: summaryRes.data.summary,
-        title: summaryRes.data.title,
         fileName: file.name,
+        title: formattedFileName,
       });
-      if (!saveRes.success || !saveRes.data) {
-        throw new Error("Failed to store summary");
+
+      if (!enqueueRes.success || !enqueueRes.data) {
+        throw new Error(enqueueRes.message || "Failed to enqueue");
       }
 
-      // ✅ Success
-      showToast("Upload Complete", "Redirecting to summary...", "success");
-      router.push(`/summaries/${saveRes.data}`);
+      // Redirect immediately
+      router.push(`/summaries/${enqueueRes.data}?status=pending`);
     } catch (error) {
       console.error(error);
-      showToast(
-        "Error",
-        error instanceof Error ? error.message : "Something went wrong",
-        "error"
+      setToastTitle("Error");
+      setToastDescription(
+        error instanceof Error ? error.message : "Something went wrong"
       );
+      setToastStatus("error");
+      setToastOpen(true);
     } finally {
       setIsLoading(false);
       formRef.current?.reset();
     }
   };
-
-  const titleColorClass =
-    toastStatus === "success"
-      ? "text-green-600"
-      : toastStatus === "error"
-      ? "text-red-600"
-      : "text-black";
 
   return (
     <Toast.Provider swipeDirection="right">
@@ -144,21 +113,11 @@ export default function UploadForm() {
           onSubmit={handleSubmit}
         />
       </div>
-
-      <Toast.Root
-        open={toastOpen}
-        onOpenChange={setToastOpen}
-        className="border border-gray-300 p-4 rounded-md shadow-md"
-      >
-        <Toast.Title className={`text-[15px] font-bold ${titleColorClass}`}>
-          {toastTitle}
-        </Toast.Title>
-        <Toast.Description className="text-[13px] text-gray-700">
-          {toastDescription}
-        </Toast.Description>
+      <Toast.Root open={toastOpen} onOpenChange={setToastOpen}>
+        <Toast.Title>{toastTitle}</Toast.Title>
+        <Toast.Description>{toastDescription}</Toast.Description>
       </Toast.Root>
-
-      <Toast.Viewport className="fixed bottom-0 right-0 z-[2147483647] m-0 flex w-[390px] max-w-[100vw] flex-col gap-2.5 p-[25px] outline-none" />
+      <Toast.Viewport />
     </Toast.Provider>
   );
 }

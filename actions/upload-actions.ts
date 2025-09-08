@@ -7,59 +7,34 @@ import { auth } from "@clerk/nextjs/server";
 import { getDbConnection } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 
-interface PdfSummaryType {
-    userId?: string;
-    fileUrl: string;
-    summary: string;
-    title: string;
-    fileName: string;
-}
-
 export async function generatePdfText({ fileUrl }: { fileUrl: string }) {
-    if (!fileUrl) {
-        return { success: false, message: "No file URL provided", data: null };
-    }
+    if (!fileUrl) return { success: false, message: "File Upload Failed", data: null };
     try {
         const pdfText = await fetchAndExtractPdfText(fileUrl);
-        if (!pdfText) {
-            return { success: false, message: "Failed to extract PDF text", data: null };
-        }
-        return { success: true, message: "PDF text extracted", data: pdfText };
-    } catch (error) {
-        console.error("generatePdfText error:", error);
-        return { success: false, message: "Error extracting PDF text", data: null };
+        if (!pdfText) return { success: false, message: "Failed to extract PDF text", data: null };
+
+        return { success: true, message: "PDF Text Fetched", data: pdfText };
+    } catch {
+        return { success: false, message: "PDF extraction error" };
     }
 }
 
-export async function generatePDFSummary(pdfText: string, fileName: string) {
+export async function generatePDFSummary(pdfText: any, fileName: string) {
     try {
         let summary;
-
         try {
             summary = await generateSummaryFromOpenAI(pdfText);
         } catch (error) {
             if (error instanceof Error && error.message === "RATE_LIMIT_EXCEEDED") {
-                try {
-                    summary = await generateSummaryFromGemini(pdfText);
-                } catch (geminiErr) {
-                    console.error("Gemini API failed", geminiErr);
-                    return { success: false, message: "Both AI providers failed", data: null };
-                }
+                summary = await generateSummaryFromGemini(pdfText);
             }
         }
 
-        if (!summary) {
-            return { success: false, message: "Summary generation failed", data: null };
-        }
+        if (!summary) return { success: false, message: "Summary generation failed", data: null };
 
-        return {
-            success: true,
-            message: "Summary generated",
-            data: { title: fileName, summary },
-        };
-    } catch (error) {
-        console.error("generatePDFSummary error:", error);
-        return { success: false, message: "Error generating summary", data: null };
+        return { success: true, data: { title: fileName, summary } };
+    } catch {
+        return { success: false, message: "Summary generation error", data: null };
     }
 }
 
@@ -76,44 +51,91 @@ async function savePdfSummary({
     title: string;
     fileName: string;
 }) {
-    try {
-        const sql = await getDbConnection();
-        const result = await sql`
-      INSERT INTO pdf_summaries (
-        user_id, original_file_url, summary_text, title, file_name
-      ) VALUES (
-        ${userId}, ${fileUrl}, ${summary}, ${title}, ${fileName}
-      )
-      RETURNING id;
-    `;
-        return { success: true, message: "Summary stored", data: result[0] };
-    } catch (error) {
-        console.error("Error saving PDF summary:", error);
-        return { success: false, message: "Database error", data: null };
-    }
+    const sql = await getDbConnection();
+    const [row] = await sql`
+    INSERT INTO pdf_summaries (
+      user_id,
+      original_file_url,
+      summary_text,
+      title,
+      file_name,
+      status
+    ) VALUES (
+      ${userId},
+      ${fileUrl},
+      ${summary},
+      ${title},
+      ${fileName},
+      'completed'
+    ) RETURNING id;
+  `;
+    return row.id;
 }
 
-export async function storePdfSummaryAction({
+// ✅ New Action: Enqueue
+export async function enqueuePdfSummary({
     fileUrl,
-    summary,
-    title,
     fileName,
-}: PdfSummaryType) {
+    title,
+}: {
+    fileUrl: string;
+    fileName: string;
+    title: string;
+}) {
     try {
         const { userId } = await auth();
-        if (!userId) {
-            return { success: false, message: "User not authenticated", data: null };
-        }
+        if (!userId) return { success: false, message: "Unauthorized" };
 
-        const savedSummary = await savePdfSummary({ userId, fileUrl, summary, title, fileName });
-        if (!savedSummary.success || !savedSummary.data) {
-            return { success: false, message: "Failed to store summary", data: null };
-        }
+        const sql = await getDbConnection();
 
-        revalidatePath(`/summaries/${savedSummary.data.id}`);
-        return { success: true, message: "Summary stored", data: savedSummary.data.id };
-    } catch (error) {
-        console.error("storePdfSummaryAction error:", error);
-        return { success: false, message: "Unexpected error storing summary", data: null };
+        // 1. Insert placeholder (status = pending)
+        const [row] = await sql`
+      INSERT INTO pdf_summaries (
+        user_id,
+        original_file_url,
+        summary_text,
+        title,
+        file_name,
+        status
+      ) VALUES (
+        ${userId},
+        ${fileUrl},
+        '',
+        ${title},
+        ${fileName},
+        'pending'
+      ) RETURNING id;
+    `;
+
+        // 2. Run heavy job asynchronously (not blocking response)
+        (async () => {
+            try {
+                const textRes = await generatePdfText({ fileUrl });
+                if (!textRes.success || !textRes.data) throw new Error("PDF extract failed");
+
+                const summaryRes = await generatePDFSummary(textRes.data, title);
+                if (!summaryRes.success || !summaryRes.data) throw new Error("Summary failed");
+
+                await sql`
+          UPDATE pdf_summaries
+          SET summary_text = ${summaryRes.data.summary}, status = 'completed'
+          WHERE id = ${row.id};
+        `;
+
+                revalidatePath(`/summaries/${row.id}`);
+            } catch (err) {
+                console.error("Background job failed", err);
+                await sql`
+          UPDATE pdf_summaries
+          SET status = 'failed'
+          WHERE id = ${row.id};
+        `;
+            }
+        })();
+
+        return { success: true, data: row.id };
+    } catch (err) {
+        console.error(err);
+        return { success: false, message: "Failed to enqueue" };
     }
 }
