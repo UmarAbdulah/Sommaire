@@ -8,12 +8,14 @@ import * as Toast from "@radix-ui/react-toast";
 import { useRouter } from "next/navigation";
 import { formatFileNameAsTitle } from "@/utils/formatutil";
 
-// import server actions
+// server actions
 import {
   generatePdfText,
   generatePDFSummary,
   storePdfSummaryAction,
 } from "@/actions/upload-actions";
+
+type ToastStatus = "success" | "error" | "processing";
 
 const schema = z.object({
   file: z
@@ -22,63 +24,63 @@ const schema = z.object({
       (file) => file.size <= 20 * 1024 * 1024,
       "File size must be less than 20MB"
     )
-    .refine(
-      (file) => file.type.startsWith("application/pdf"),
-      "File must be a PDF"
-    ),
+    .refine((file) => file.type === "application/pdf", "File must be a PDF"),
 });
-
-type ToastStatus = "success" | "error" | "processing";
 
 export default function UploadForm() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [toastOpen, setToastOpen] = React.useState(false);
   const [toastTitle, setToastTitle] = React.useState("");
   const [toastDescription, setToastDescription] = React.useState("");
-  const formRef = React.useRef<HTMLFormElement>(null);
-  const router = useRouter();
   const [toastStatus, setToastStatus] =
     React.useState<ToastStatus>("processing");
+  const formRef = React.useRef<HTMLFormElement>(null);
+  const router = useRouter();
 
   const { startUpload } = useUploadThing("pdfUploader", {
     onUploadError: (error) => {
-      setToastTitle("Upload Failed");
-      setToastDescription(error.message);
-      setToastStatus("error");
-      setToastOpen(true);
+      showToast("Upload Failed", error.message, "error");
     },
     onUploadBegin: () => {
-      setToastTitle("Processing PDF...");
-      setToastDescription("Hang tight, this may take a few moments.");
-      setToastStatus("processing");
-      setToastOpen(true);
+      showToast(
+        "Processing PDF...",
+        "Hang tight, this may take a few moments.",
+        "processing"
+      );
     },
   });
+
+  function showToast(title: string, description: string, status: ToastStatus) {
+    setToastTitle(title);
+    setToastDescription(description);
+    setToastStatus(status);
+    setToastOpen(true);
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       setIsLoading(true);
+
       const formData = new FormData(e.currentTarget);
       const file = formData.get("file") as File;
 
       // ✅ Validate
       const validatedFields = schema.safeParse({ file });
       if (!validatedFields.success) {
-        setToastTitle(
+        showToast(
           validatedFields.error.flatten().fieldErrors.file?.[0] ??
-            "Invalid File"
+            "Invalid file",
+          "",
+          "error"
         );
-        setToastDescription("");
-        setToastStatus("error");
-        setToastOpen(true);
         setIsLoading(false);
         return;
       }
 
-      // ✅ Upload file to UploadThing
+      // ✅ Upload to UploadThing
       const uploadResponse: any = await startUpload([file]);
-      if (!uploadResponse || !uploadResponse[0]?.url) {
+      if (!uploadResponse?.[0]?.url) {
         throw new Error("File upload failed");
       }
       const fileUrl = uploadResponse[0].url;
@@ -110,16 +112,16 @@ export default function UploadForm() {
         throw new Error("Failed to store summary");
       }
 
-      // ✅ Success — redirect
+      // ✅ Success
+      showToast("Upload Complete", "Redirecting to summary...", "success");
       router.push(`/summaries/${saveRes.data}`);
     } catch (error) {
       console.error(error);
-      setToastTitle("Error");
-      setToastDescription(
-        error instanceof Error ? error.message : "Something went wrong"
+      showToast(
+        "Error",
+        error instanceof Error ? error.message : "Something went wrong",
+        "error"
       );
-      setToastStatus("error");
-      setToastOpen(true);
     } finally {
       setIsLoading(false);
       formRef.current?.reset();
