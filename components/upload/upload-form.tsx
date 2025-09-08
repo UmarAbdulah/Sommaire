@@ -101,7 +101,7 @@ export default function UploadForm() {
 
       const { data = null, message = null } = summaryResult || {};
 
-      if (data?.summary) {
+      if (data) {
         storeResult = await storePdfSummaryAction({
           fileUrl: uploadResponse[0].serverData.fileUrl,
           summary: data.summary,
