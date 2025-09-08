@@ -5,7 +5,6 @@ import { generateSummaryFromGemini } from "@/lib/gemini";
 import { auth } from "@clerk/nextjs/server";
 import { getDbConnection } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { success } from "zod";
 
 interface PdfSummaryType {
     userId?: string;
