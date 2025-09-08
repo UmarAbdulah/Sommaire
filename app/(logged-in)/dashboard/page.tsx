@@ -8,6 +8,12 @@ import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import EmptySummaryState from "@/components/summaries/empty-summary";
 import { hasReachedUploadLimit } from "@/lib/user";
+import {
+  MotionDiv,
+  MotionH1,
+  MotionP,
+} from "@/components/common/motion-wrapper";
+import { itemVariants } from "@/utils/constant";
 
 export default async function DashboardPage() {
   const user = await currentUser();
@@ -33,30 +39,51 @@ export default async function DashboardPage() {
         <div className="px-2 py-12 sm:py-24">
           <div className="flex  gap-4 mb-8 justify-between">
             <div className="flex flex-col gap-2">
-              <h1
+              <MotionH1
+                variants={itemVariants}
+                initial="hidden"
+                animate="visible"
                 className="text-4xl font-bold tracking-tight bg-linear-to-r
               from-gray-600 to-gray-900 bg-clip-text text-transparent"
               >
                 Your Summaries
-              </h1>
-              <p className="text-gray-600">
+              </MotionH1>
+              <MotionP
+                variants={itemVariants}
+                initial="hidden"
+                animate="visible"
+                className="text-gray-600"
+              >
                 Transform your PDFs into concise, actionable insights
-              </p>
+              </MotionP>
             </div>
             {!hasReachedLimit && (
-              <Button
-                variant={"link"}
-                className="bg-linear-to-r from-rose-500 to-rose-700 hover:from-rose-600 hover:to-rose-800 hover:scale-105 transition-all duration-300 group hover:no-underline"
+              <MotionDiv
+                variants={itemVariants}
+                initial="hidden"
+                animate="visible"
+                whileHover={{ scale: 1.05 }}
               >
-                <Link href="/upload" className="flex items-center text-white">
-                  <Plus className="w-5 h-5 mr-2" />
-                  New Summary
-                </Link>
-              </Button>
+                <Button
+                  variant={"link"}
+                  className="bg-linear-to-r from-rose-500 to-rose-700 hover:from-rose-600 hover:to-rose-800 hover:scale-105 transition-all duration-300 group hover:no-underline"
+                >
+                  <Link href="/upload" className="flex items-center text-white">
+                    <Plus className="w-5 h-5 mr-2" />
+                    New Summary
+                  </Link>
+                </Button>
+              </MotionDiv>
             )}
           </div>
           {hasReachedLimit && (
-            <div className="mb-6">
+            <MotionDiv
+              variants={itemVariants}
+              initial="hidden"
+              animate="visible"
+              whileHover={{ scale: 1.05 }}
+              className="mb-6"
+            >
               <div className="bg-rose-50 border border-rose-200 rounded-lg p-4 text-rose-800">
                 <p className="text-sm inline">
                   You've reached the limit of {hasReachedLimit} uploads on the
@@ -71,7 +98,7 @@ export default async function DashboardPage() {
                 </Link>
                 for unlimited uploads.
               </div>
-            </div>
+            </MotionDiv>
           )}
 
           {summaries.length === 0 ? (

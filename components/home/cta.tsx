@@ -1,10 +1,17 @@
 import Link from "next/link";
 import { Button } from "../ui/button";
 import { ArrowRight } from "lucide-react";
+import { MotionDiv, MotionSection } from "../common/motion-wrapper";
+import { itemVariants } from "@/utils/constant";
 
 export default function CTA() {
   return (
-    <section className="bg-gray-50 py-12">
+    <MotionSection
+      variants={itemVariants}
+      initial="hidden"
+      whileInView="visible"
+      className="bg-gray-50 py-12"
+    >
       <div className="py-12 lg:py-24 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col items-center justify-center space-y-4 text-center">
           <div className="space-y-2 ">
@@ -39,6 +46,6 @@ export default function CTA() {
           </div>
         </div>
       </div>
-    </section>
+    </MotionSection>
   );
 }

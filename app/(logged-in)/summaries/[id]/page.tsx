@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { FileText } from "lucide-react";
 import SummaryViewer from "@/components/summaries/summary-viewer";
 import SummaryHeader from "@/components/summaries/summary-header";
+import { MotionDiv } from "@/components/common/motion-wrapper";
+import { itemVariants } from "@/utils/constant";
 
 export default async function SummaryPage(props: {
   params: Promise<{ id: string }>;
@@ -40,7 +42,12 @@ export default async function SummaryPage(props: {
           }}
         />
       </div>
-      <div className="container mx-auto flex flex-col gap-4">
+      <MotionDiv
+        variants={itemVariants}
+        initial="hidden"
+        animate="visible"
+        className="container mx-auto flex flex-col gap-4"
+      >
         <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-12 lg:py-24">
           <div className="flex flex-col">
             <SummaryHeader
@@ -71,7 +78,7 @@ export default async function SummaryPage(props: {
             </div>
           </div>
         </div>
-      </div>
+      </MotionDiv>
     </div>
   );
 }

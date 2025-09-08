@@ -2,7 +2,9 @@ import { CheckIcon } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { ArrowRight } from "lucide-react";
-import { plans } from "@/utils/constant";
+import { containerVariants, itemVariants, plans } from "@/utils/constant";
+import { MotionDiv, MotionSection } from "../common/motion-wrapper";
+import { Variants } from "framer-motion";
 
 type PriceType = {
   name: string;
@@ -16,21 +18,44 @@ type PriceType = {
 
 const PricingSection = () => {
   return (
-    <section className="relative overflow-hidden" id="pricing">
+    <MotionSection
+      variants={containerVariants}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: "-100px" }}
+      className="relative overflow-hidden"
+      id="pricing"
+    >
       <div className="py-12 lg:py-24 max-w-5xl  mx-auto px-4 sm:px-6 lg:px-8 lg:pt-12">
-        <div className="flex items-center justify-center w-full pb-12">
+        <MotionDiv
+          variants={itemVariants}
+          className="flex items-center justify-center w-full pb-12"
+        >
           <h1 className="uppercase font-bold text-xl mb-8 text-rose-500">
             Pricing
           </h1>
-        </div>
+        </MotionDiv>
         <div className="relative  flex justify-center flex-col lg:flex-row items-center lg:items-stretch gap-8 ">
           {plans.map((plan) => (
             <PricingCard key={plan.id} {...plan} />
           ))}
         </div>
       </div>
-    </section>
+    </MotionSection>
   );
+};
+
+export const pricingVariants: Variants = {
+  hidden: { opacity: 0, x: -50 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: {
+      type: "spring", // TS now recognizes this as valid
+      damping: 10,
+      stiffness: 100,
+    },
+  },
 };
 
 const PricingCard = ({
@@ -42,7 +67,10 @@ const PricingCard = ({
   paymentLink,
 }: PriceType) => {
   return (
-    <div className="relative w-full max-w-lg mb-5 hover:scale-105 hover:transition-all duration-300">
+    <MotionDiv
+      variants={pricingVariants}
+      className="relative w-full max-w-lg mb-5 hover:scale-105 hover:transition-all duration-300"
+    >
       <div
         className={`relative flex flex-col h-full gap-4 lg:gap-8 z-10 p-8 rounded-2xl border-[1px] border-gray-500/20 ${
           id === "pro" ? "border-rose-500 gap-5 border-2" : ""
@@ -88,7 +116,7 @@ const PricingCard = ({
           </Link>
         </div>
       </div>
-    </div>
+    </MotionDiv>
   );
 };
 

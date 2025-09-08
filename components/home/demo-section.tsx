@@ -1,4 +1,7 @@
 import { Pizza } from "lucide-react";
+import { MotionDiv, MotionH3 } from "../common/motion-wrapper";
+import SummaryViewer from "../summaries/summary-viewer";
+import { DEMO_SUMMARY } from "@/utils/constant";
 
 export default function DemoSection() {
   return (
@@ -21,17 +24,26 @@ export default function DemoSection() {
             <Pizza className="w-6 h-6 text-rose-500 " />
           </div>
           <div className="text-center mb-16">
-            <h3 className="font-bold text-3xl  max-w-2xl mx-auto px-4 sm:px-6">
+            <MotionH3
+              initial={{ y: 20, opacity: 0 }}
+              whileInView={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="font-bold text-3xl  max-w-2xl mx-auto px-4 sm:px-6"
+            >
               Watch How Sommaire Transforms{" "}
               <span className="bg-linear-to-r from-rose-500 to-rose-700 bg-clip-text text-transparent">
                 this Next.js Course PDF{" "}
               </span>
               into an easy-to-read Summary
-            </h3>
+            </MotionH3>
           </div>
-          <div className="flex justify-center items-center px-2 sm:px-4 lg:px-6">
-            Summary
-          </div>
+          <MotionDiv
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+          >
+            <SummaryViewer summary={DEMO_SUMMARY} />
+          </MotionDiv>
         </div>
       </div>
     </section>
