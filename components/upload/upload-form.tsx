@@ -8,6 +8,13 @@ import * as Toast from "@radix-ui/react-toast";
 import { useRouter } from "next/navigation";
 import { formatFileNameAsTitle } from "@/utils/formatutil";
 
+// import server actions
+import {
+  generatePdfText,
+  generatePDFSummary,
+  storePdfSummaryAction,
+} from "@/actions/upload-actions";
+
 const schema = z.object({
   file: z
     .instanceof(File, { message: "Invalid file" })
@@ -55,6 +62,7 @@ export default function UploadForm() {
       const formData = new FormData(e.currentTarget);
       const file = formData.get("file") as File;
 
+      // ✅ Validate
       const validatedFields = schema.safeParse({ file });
       if (!validatedFields.success) {
         setToastTitle(
@@ -68,42 +76,48 @@ export default function UploadForm() {
         return;
       }
 
-      // 1. Upload file to UploadThing
+      // ✅ Upload file to UploadThing
       const uploadResponse: any = await startUpload([file]);
       if (!uploadResponse || !uploadResponse[0]?.url) {
         throw new Error("File upload failed");
       }
-
       const fileUrl = uploadResponse[0].url;
       const formattedFileName = formatFileNameAsTitle(file.name);
 
-      // 2. Call lightweight /api/upload
-      const uploadRes = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileUrl,
-          fileName: file.name,
-          title: formattedFileName,
-        }),
-      }).then((res) => res.json());
+      // ✅ Extract text
+      const textRes = await generatePdfText({ fileUrl });
+      if (!textRes.success || !textRes.data) {
+        throw new Error("Failed to extract PDF text");
+      }
 
-      if (!uploadRes.success) throw new Error("DB save failed");
+      // ✅ Generate summary
+      const summaryRes = await generatePDFSummary(
+        textRes.data,
+        formattedFileName
+      );
+      if (!summaryRes.success || !summaryRes.data) {
+        throw new Error("Failed to generate summary");
+      }
 
-      const id = uploadRes.data;
-
-      // 3. Kick off background summary processing
-      fetch("/api/process-summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, fileUrl, fileName: file.name }),
+      // ✅ Store in DB
+      const saveRes = await storePdfSummaryAction({
+        fileUrl,
+        summary: summaryRes.data.summary,
+        title: summaryRes.data.title,
+        fileName: file.name,
       });
+      if (!saveRes.success || !saveRes.data) {
+        throw new Error("Failed to store summary");
+      }
 
-      // 4. Redirect user immediately
-      router.push(`/summaries/${id}`);
+      // ✅ Success — redirect
+      router.push(`/summaries/${saveRes.data}`);
     } catch (error) {
       console.error(error);
       setToastTitle("Error");
+      setToastDescription(
+        error instanceof Error ? error.message : "Something went wrong"
+      );
       setToastStatus("error");
       setToastOpen(true);
     } finally {
