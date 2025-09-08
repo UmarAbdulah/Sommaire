@@ -84,7 +84,7 @@ export default function UploadForm() {
       const formatedFileName = formatFileNameAsTitle(file.name);
       console.log(uploadResponse);
       const result = await generatePdfText({
-        fileUrl: uploadResponse[0].serverData.url,
+        fileUrl: uploadResponse[0].url,
       });
       const summaryResult = await generatePDFSummary(
         result?.data,
@@ -103,7 +103,7 @@ export default function UploadForm() {
 
       if (data) {
         storeResult = await storePdfSummaryAction({
-          fileUrl: uploadResponse[0].serverData.url,
+          fileUrl: uploadResponse[0].url,
           summary: data.summary,
           title: formatedFileName,
           fileName: file.name,
