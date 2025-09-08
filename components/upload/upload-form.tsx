@@ -112,6 +112,11 @@ export default function UploadForm() {
 
       router.push(`/summaries/${storeResult.data}`);
     } catch (error) {
+      console.log(error);
+      setToastTitle("Error");
+      setToastStatus("error");
+      setToastOpen(true);
+      setIsLoading(false);
       setIsLoading(false);
       formRef.current?.reset();
     } finally {
