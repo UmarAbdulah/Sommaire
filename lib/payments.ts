@@ -83,7 +83,6 @@ export async function handleSubscriptionDeleted({
     subscriptionId: string;
     stripe: Stripe;
 }) {
-    console.log('Subscription deleted', subscriptionId);
 
     try {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);

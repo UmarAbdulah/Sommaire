@@ -4,8 +4,8 @@ import { generateSummaryFromOpenAI } from "@/lib/openai";
 import { generateSummaryFromGemini } from "@/lib/gemini";
 import { auth } from "@clerk/nextjs/server";
 import { getDbConnection } from "@/lib/db";
-import { formatFileNameAsTitle } from "@/utils/formatutil";
 import { revalidatePath } from "next/cache";
+import { success } from "zod";
 
 interface PdfSummaryType {
     userId?: string;
@@ -16,26 +16,44 @@ interface PdfSummaryType {
 }
 
 
-export async function generatePDFSummary(uploadResponse: any) {
-    if (!uploadResponse) {
+export async function generatePdfText({ fileUrl }: {
+    fileUrl: string,
+}) {
+    if (!fileUrl) {
         return {
             success: false,
-            message: "File Upload Failed",
+            message: "File  Uplaod Failed ",
             data: null
         }
     }
-    const { serverData: { userId, file: { url: pdfUrl, name: pdfName } } } = uploadResponse[0];
+    try {
+        const pdfText = await fetchAndExtractPdfText(fileUrl);
 
-    if (!pdfUrl) {
+        if (!pdfText) {
+            return {
+                success: false,
+                message: "Failed to fetch and extract pdf text",
+                data: null
+            }
+        }
+
+        return {
+            success: true,
+            message: "PDF Text Fetched Successfully",
+            data: pdfText
+
+        }
+    }
+    catch (error) {
         return {
             success: false,
-            message: "File Upload Failed",
-            data: null
-        };
+            message: "Failed to Extract PDF Text  Successfully",
+        }
     }
+}
 
+export async function generatePDFSummary(pdfText: any, fileName: string) {
     try {
-        const pdfText = await fetchAndExtractPdfText(pdfUrl);
         let summary
         try {
             summary = await generateSummaryFromOpenAI(pdfText);
@@ -60,12 +78,11 @@ export async function generatePDFSummary(uploadResponse: any) {
             }
         }
 
-        const formatedFileName = formatFileNameAsTitle(pdfName)
         return {
             success: true,
             message: "Summary Generated Successfully",
             data: {
-                title: formatedFileName,
+                title: fileName,
                 summary
             }
         }
@@ -73,7 +90,7 @@ export async function generatePDFSummary(uploadResponse: any) {
     catch (error) {
         return {
             success: false,
-            message: "File Upload Failed",
+            message: "Filed to generate Summary",
             data: null
         };
     }
@@ -141,7 +158,6 @@ export async function storePdfSummaryAction({ fileUrl, summary, title, fileName 
                 message: "Storing Summary Failed",
             }
         }
-        console.log("saved Sumamry", savedSummary)
         revalidatePath(`/summaries/${savedSummary.data.id}`)
         return {
             success: true,

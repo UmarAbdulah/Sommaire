@@ -23,7 +23,8 @@ export const ourFileRouter = {
       // ✅ Only return JSON-serializable values (avoid raw file object)
       return {
         userId: metadata.userId,
-        file
+        fileUrl: file.url,
+        fileName: file.name
       };
     }),
 } satisfies FileRouter;

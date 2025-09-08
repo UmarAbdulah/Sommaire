@@ -5,9 +5,10 @@ import { UploadFormInput } from "./upload-form-input";
 import { z } from "zod";
 import { useUploadThing } from "@/utils/uploadthing";
 import * as Toast from "@radix-ui/react-toast";
-import { generatePDFSummary } from "@/actions/upload-actions";
+import { generatePDFSummary, generatePdfText } from "@/actions/upload-actions";
 import { storePdfSummaryAction } from "@/actions/upload-actions";
 import { useRouter } from "next/navigation";
+import { formatFileNameAsTitle } from "@/utils/formatutil";
 
 const schema = z.object({
   file: z
@@ -43,7 +44,7 @@ export default function UploadForm() {
       setToastStatus("error");
       setToastOpen(true);
     },
-    onUploadBegin: (filename) => {
+    onUploadBegin: (data) => {
       setToastTitle("Processing PDF...");
       setToastDescription("Hang tight, this may take a few moments.");
       setToastStatus("processing");
@@ -71,43 +72,48 @@ export default function UploadForm() {
         return;
       }
 
-      const resp: any = await startUpload([file]);
+      const uploadResponse: any = await startUpload([file]);
 
-      const result = await generatePDFSummary(resp);
+      let storeResult: any;
 
-      if (!result.success) {
+      setToastTitle("Saving PDF Summary");
+      setToastDescription("Hang Tight! WE'RE ALMOST DONE!");
+      setToastOpen(true);
+      setIsLoading(true);
+
+      const formatedFileName = formatFileNameAsTitle(file.name);
+
+      const result = await generatePdfText({
+        fileUrl: uploadResponse[0].serverData.fileUrl,
+      });
+      const summaryResult = await generatePDFSummary(
+        result?.data,
+        formatedFileName
+      );
+
+      if (!summaryResult.success) {
         setToastTitle("Error");
-        setToastDescription(result.message);
+        setToastDescription(summaryResult.message);
         setToastStatus("error");
         setToastOpen(true);
         setIsLoading(false);
       }
 
-      const { data = null, message = null } = result || {};
+      const { data = null, message = null } = summaryResult || {};
 
-      if (data) {
-        let storeResult: any;
-
-        setToastTitle("Saving PDF Summary");
-        setToastDescription("Hang Tight! WE'RE ALMOST DONE!");
-        setToastOpen(true);
-        setIsLoading(true);
-        if (data.summary) {
-          storeResult = await storePdfSummaryAction({
-            fileUrl: resp[0].serverData.file.url,
-            summary: data.summary,
-            title: data.title,
-            fileName: file.name,
-          });
-        }
-
-        console.log("Results are here", storeResult);
-        router.push(`/summaries/${storeResult.data}`);
+      if (data?.summary) {
+        storeResult = await storePdfSummaryAction({
+          fileUrl: uploadResponse[0].serverData.fileUrl,
+          summary: data.summary,
+          title: formatedFileName,
+          fileName: file.name,
+        });
       }
+
+      router.push(`/summaries/${storeResult.data}`);
     } catch (error) {
       setIsLoading(false);
       formRef.current?.reset();
-      console.log(error);
     } finally {
       formRef.current?.reset();
       setIsLoading(false);

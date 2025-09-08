@@ -13,7 +13,6 @@ export default async function SummaryPage(props: {
   const { id } = await props.params;
 
   const summary = await getSummaryById(id);
-  console.log(id);
   if (!summary) {
     notFound();
   }

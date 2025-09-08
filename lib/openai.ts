@@ -23,7 +23,6 @@ export async function generateSummaryFromOpenAI(pdfText: string) {
         if (error?.status === 429) {
             throw new Error("Rate limit exceeded. Please try again later.");
         }
-        console.log("Error in genrating sumamry", error)
         throw error;
     }
 }
